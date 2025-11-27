@@ -1,0 +1,27 @@
+services:
+  # Web Service
+  - type: web
+    name: task-employee-flow
+    env: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: task-employee-flow-db
+          property: connectionString
+
+databases:
+  # MongoDB Database
+  - name: task-employee-flow-db
+    plan: free
+    databaseName: taskemployeeflow
+    user: taskemployeeflow
+

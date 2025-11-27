@@ -1,99 +1,107 @@
-import { sql, relations } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, pgEnum } from "drizzle-orm/pg-core";
-import { createInsertSchema } from "drizzle-zod";
+import mongoose, { Schema, Document } from "mongoose";
 import { z } from "zod";
 
-export const userRoleEnum = pgEnum("user_role", ["manager", "employee"]);
-export const taskStatusEnum = pgEnum("task_status", ["pending", "in_progress", "completed"]);
-export const complaintStatusEnum = pgEnum("complaint_status", ["open", "in_review", "resolved"]);
+// User Role and Status Enums
+export type UserRole = "manager" | "employee";
+export type TaskStatus = "pending" | "in_progress" | "completed";
+export type ComplaintStatus = "open" | "in_review" | "resolved";
 
-export const users = pgTable("users", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  name: text("name").notNull(),
-  email: text("email").notNull().unique(),
-  password: text("password").notNull(),
-  role: userRoleEnum("role").notNull().default("employee"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
+// User Schema
+export interface IUser extends Document {
+  _id: string;
+  name: string;
+  email: string;
+  password: string;
+  role: UserRole;
+  createdAt: Date;
+}
+
+const userSchema = new Schema<IUser>({
+  name: { type: String, required: true },
+  email: { type: String, required: true, unique: true },
+  password: { type: String, required: true },
+  role: { type: String, enum: ["manager", "employee"], default: "employee", required: true },
+  createdAt: { type: Date, default: Date.now, required: true },
 });
 
-export const tasks = pgTable("tasks", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  title: text("title").notNull(),
-  description: text("description").notNull(),
-  link: text("link"),
-  status: taskStatusEnum("status").notNull().default("pending"),
-  assignedTo: varchar("assigned_to").references(() => users.id),
-  createdBy: varchar("created_by").references(() => users.id).notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
+export const User = mongoose.model<IUser>("User", userSchema);
+
+// Task Schema
+export interface ITask extends Document {
+  _id: string;
+  title: string;
+  description: string;
+  link?: string;
+  status: TaskStatus;
+  assignedTo?: string;
+  createdBy: string;
+  createdAt: Date;
+}
+
+const taskSchema = new Schema<ITask>({
+  title: { type: String, required: true },
+  description: { type: String, required: true },
+  link: { type: String },
+  status: { type: String, enum: ["pending", "in_progress", "completed"], default: "pending", required: true },
+  assignedTo: { type: String, ref: "User" },
+  createdBy: { type: String, ref: "User", required: true },
+  createdAt: { type: Date, default: Date.now, required: true },
 });
 
-export const complaints = pgTable("complaints", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  title: text("title").notNull(),
-  description: text("description").notNull(),
-  status: complaintStatusEnum("status").notNull().default("open"),
-  employeeId: varchar("employee_id").references(() => users.id).notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
+export const Task = mongoose.model<ITask>("Task", taskSchema);
+
+// Complaint Schema
+export interface IComplaint extends Document {
+  _id: string;
+  title: string;
+  description: string;
+  status: ComplaintStatus;
+  employeeId: string;
+  createdAt: Date;
+}
+
+const complaintSchema = new Schema<IComplaint>({
+  title: { type: String, required: true },
+  description: { type: String, required: true },
+  status: { type: String, enum: ["open", "in_review", "resolved"], default: "open", required: true },
+  employeeId: { type: String, ref: "User", required: true },
+  createdAt: { type: Date, default: Date.now, required: true },
 });
 
-export const usersRelations = relations(users, ({ many }) => ({
-  assignedTasks: many(tasks, { relationName: "assignedTasks" }),
-  createdTasks: many(tasks, { relationName: "createdTasks" }),
-  complaints: many(complaints),
-}));
+export const Complaint = mongoose.model<IComplaint>("Complaint", complaintSchema);
 
-export const tasksRelations = relations(tasks, ({ one }) => ({
-  assignee: one(users, {
-    fields: [tasks.assignedTo],
-    references: [users.id],
-    relationName: "assignedTasks",
-  }),
-  creator: one(users, {
-    fields: [tasks.createdBy],
-    references: [users.id],
-    relationName: "createdTasks",
-  }),
-}));
-
-export const complaintsRelations = relations(complaints, ({ one }) => ({
-  employee: one(users, {
-    fields: [complaints.employeeId],
-    references: [users.id],
-  }),
-}));
-
-export const insertUserSchema = createInsertSchema(users).omit({
-  id: true,
-  createdAt: true,
-});
-
+// Zod Schemas for validation
 export const loginSchema = z.object({
   email: z.string().email("Invalid email address"),
   password: z.string().min(6, "Password must be at least 6 characters"),
 });
 
-export const registerSchema = insertUserSchema.extend({
+export const registerSchema = z.object({
   email: z.string().email("Invalid email address"),
   password: z.string().min(6, "Password must be at least 6 characters"),
   name: z.string().min(2, "Name must be at least 2 characters"),
+  role: z.enum(["manager", "employee"]).optional().default("employee"),
 });
 
-export const insertTaskSchema = createInsertSchema(tasks).omit({
-  id: true,
-  createdAt: true,
-  createdBy: true,
+export const insertUserSchema = registerSchema;
+
+export const insertTaskSchema = z.object({
+  title: z.string().min(1, "Title is required"),
+  description: z.string().min(1, "Description is required"),
+  link: z.string().optional(),
+  status: z.enum(["pending", "in_progress", "completed"]).optional().default("pending"),
+  assignedTo: z.string().optional(),
 });
 
-export const insertComplaintSchema = createInsertSchema(complaints).omit({
-  id: true,
-  createdAt: true,
-  employeeId: true,
-  status: true,
+export const insertComplaintSchema = z.object({
+  title: z.string().min(1, "Title is required"),
+  description: z.string().min(1, "Description is required"),
 });
 
+// Type exports
 export type InsertUser = z.infer<typeof insertUserSchema>;
-export type User = typeof users.$inferSelect;
+export type User = IUser;
 export type InsertTask = z.infer<typeof insertTaskSchema>;
-export type Task = typeof tasks.$inferSelect;
+export type Task = ITask;
 export type InsertComplaint = z.infer<typeof insertComplaintSchema>;
-export type Complaint = typeof complaints.$inferSelect;
+export type Complaint = IComplaint;
