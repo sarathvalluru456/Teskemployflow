@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "tsx server/index.ts",
     "dev:win": "powershell -ExecutionPolicy Bypass -File ./start-dev.ps1",
-    "build": "tsx script/build.ts",
+    "build": "node script/build.js",
     "start": "NODE_ENV=production node dist/index.cjs",
     "check": "tsc"
   },

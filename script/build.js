@@ -2,8 +2,7 @@ import { build as esbuild } from "esbuild";
 import { build as viteBuild } from "vite";
 import { rm, readFile } from "fs/promises";
 
-// server deps to bundle to reduce openat(2) syscalls
-// which helps cold start times
+// Keep the allowlist small so esbuild bundles most things, which reduces cold-start churn.
 const allowlist = [
   "@google/generative-ai",
   "axios",
@@ -63,3 +62,4 @@ buildAll().catch((err) => {
   console.error(err);
   process.exit(1);
 });
+
