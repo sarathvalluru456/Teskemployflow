@@ -17,6 +17,8 @@ services:
         fromDatabase:
           name: task-employee-flow-db
           property: connectionString
+      - key: NPM_CONFIG_PRODUCTION
+        value: "false"
 
 databases:
   # MongoDB Database
