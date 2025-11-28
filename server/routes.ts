@@ -1,7 +1,7 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import session from "express-session";
-import MongoStore from "connect-mongo";
+import pgSession from "connect-pg-simple";
 import { storage } from "./storage";
 import { loginSchema, registerSchema, insertTaskSchema, insertComplaintSchema } from "@shared/schema";
 import { z } from "zod";
@@ -30,18 +30,28 @@ function requireManager(req: Request, res: Response, next: NextFunction) {
   next();
 }
 
+const PgSession = pgSession(session);
+
 export async function registerRoutes(
   httpServer: Server,
-  app: Express
+  app: Express,
 ): Promise<Server> {
+  if (!process.env.DATABASE_URL) {
+    throw new Error("DATABASE_URL must be set before initializing sessions");
+  }
+
   app.use(
     session({
       secret: process.env.SESSION_SECRET || "task-employee-flow-secret-key-dev",
       resave: false,
       saveUninitialized: false,
-      store: MongoStore.create({
-        mongoUrl: process.env.DATABASE_URL,
-        ttl: 24 * 60 * 60, // 24 hours
+      store: new PgSession({
+        conString: process.env.DATABASE_URL,
+        createTableIfMissing: true,
+        ssl:
+          process.env.NODE_ENV === "production"
+            ? { rejectUnauthorized: false }
+            : undefined,
       }),
       cookie: {
         secure: process.env.NODE_ENV === "production",
